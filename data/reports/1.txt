@@ -1,0 +1,17 @@
+Header:
+Chest CT with contrast, performed for follow-up of pulmonary and abdominal findings.
+
+Findings:
+Devices/Tubes/Lines: None.
+Lungs: Persistent 3 mm subpleural nodule in the right middle lobe and 6 mm left lower lobe nodule. No new pulmonary nodules, masses, or consolidation. Subtle right lower lobe bronchiectasis. No evidence of acute infection.
+Pleura: Minimal left pleural effusion. No pneumothorax.
+Mediastinum: Normal heart size. Stable coronary artery calcifications. Aortic arch and thoracic aorta are normal.
+Lymph Nodes: No significantly enlarged lymph nodes in the supraclavicular, axillary, or mediastinal regions.
+Upper Abdomen: Mild hepatomegaly with steatosis. Stable 2.5 cm left adrenal adenoma. No hydronephrosis or renal stones. Pancreas and spleen are unremarkable.
+Chest Wall: No abnormality detected.
+Bones: No lytic or sclerotic lesions. Moderate degenerative changes in the thoracic spine.
+
+Impression:
+	1.	Stable subpleural pulmonary nodules without concerning features for malignancy.
+	2.	Minimal left pleural effusion, likely reactive.
+	3.	Fatty liver with stable adrenal and renal lesions.
