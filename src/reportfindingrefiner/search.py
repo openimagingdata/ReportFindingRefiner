@@ -2,6 +2,8 @@ from typing import List
 from .lance_db import connect_db
 import pandas as pd
 
+#TODO: Refactor this so that a new Index isnt created every time; move to search_in_db function
+
 def basic_search(table, query: str, limit: int = 10):
     """
     Perform a basic full-text search.

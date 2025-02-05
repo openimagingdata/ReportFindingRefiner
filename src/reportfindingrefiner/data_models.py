@@ -1,7 +1,6 @@
 from typing import Optional, List
 from pydantic import BaseModel
 
-# For LanceDB schema
 from lancedb.pydantic import LanceModel, Vector
 from lancedb.embeddings import get_registry
 
@@ -25,9 +24,7 @@ class Fragment(BaseModel):
     vector: Optional[List[float]] = None
 
 
-# Create the embedding function (HuggingFace example).
-# For a real open-source project, you might want to make this
-# user-configurable or load from a config file.
+# TODO: Make this configurable  
 embed_fcn = get_registry().get("huggingface").create(name="BAAI/bge-en-icl")
 
 
@@ -44,4 +41,15 @@ class FragmentSchema(LanceModel):
     text: str = embed_fcn.SourceField()
 
     # The resulting embedding vector
+    vector: Vector(embed_fcn.ndims()) = embed_fcn.VectorField()  # type: ignore
+
+
+class FindingModelSchema(LanceModel):
+    """
+    Schema for storing FindingModel information in LanceDB.
+    Uses LanceModel for auto-embedding fields and vector creation.
+    """
+    model_name: str
+    model_data: str  # JSON string of the full model
+    text: str = embed_fcn.SourceField()  # String representation for embedding
     vector: Vector(embed_fcn.ndims()) = embed_fcn.VectorField()  # type: ignore

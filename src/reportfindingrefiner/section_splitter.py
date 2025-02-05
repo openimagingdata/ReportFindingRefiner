@@ -5,19 +5,19 @@ from .data_models import Report, Fragment
 
 class SectionSplitter:
     """
-    Splits text into sections based on naive headings:
-    e.g. "Header:", "Findings:", "Impression:".
+    Splits text into sections based on main headings (Header, Findings, Impression)
+    and then further splits sections by colons for natural subsections.
     """
 
     def __init__(self):
-        self.known_sections = ["Header:", "Findings:", "Impression:"]
+        self.main_sections = ["Header:", "Findings:", "Impression:"]
 
     def split_into_sections(self, report_text: str) -> List[Tuple[Optional[str], str]]:
         """
         Returns a list of tuples (section_label, section_text).
         If no headings are found, returns one tuple with (None, entire_text).
         """
-        pattern = r"(" + "|".join(map(re.escape, self.known_sections)) + r")"
+        pattern = r"(" + "|".join(map(re.escape, self.main_sections)) + r")"
         parts = re.split(pattern, report_text)
         results = []
         current_section_label = None
@@ -28,12 +28,10 @@ class SectionSplitter:
             if not part_stripped:
                 continue
 
-            if part in self.known_sections:
-                # Save the previous chunk
+            if part in self.main_sections:
                 if current_section_label and current_text_chunks:
                     combined_text = " ".join(current_text_chunks).strip()
                     results.append((current_section_label, combined_text))
-                # Update the label
                 current_section_label = part_stripped
                 current_text_chunks = []
             else:
@@ -45,7 +43,6 @@ class SectionSplitter:
             results.append((current_section_label, combined_text))
 
         if not results and report_text.strip():
-            # No recognized sections, return entire text
             results.append((None, report_text.strip()))
 
         return results
@@ -54,19 +51,36 @@ class SectionSplitter:
         self, section_fragments: List[Tuple[Optional[str], str]]
     ) -> List[Tuple[Optional[str], str]]:
         """
-        Example splitting inside each section if needed.
+        Split sections by colons to create natural subsections.
+        Preserves the original section label (Header/Findings/Impression).
         """
         smaller_fragments = []
         for label, text in section_fragments:
-            if ':' in text:
-                fragments = text.split(':')
-                for i in range(1, len(fragments)):
-                    fragment_text = (
-                        fragments[i - 1].split()[-1] + ': ' + fragments[i].strip()
-                    )
-                    smaller_fragments.append((label, fragment_text.strip()))
+            if label == "Findings:" and ':' in text:
+                # Split findings section by colons, preserving the parent section
+                lines = text.split('\n')
+                current_fragment = []
+                
+                for line in lines:
+                    if ':' in line and not line.endswith(':'):
+                        # If we have accumulated text, save it as a fragment
+                        if current_fragment:
+                            fragment_text = ' '.join(current_fragment).strip()
+                            smaller_fragments.append((label, fragment_text))
+                            current_fragment = []
+                        # Add this line as a new fragment
+                        smaller_fragments.append((label, line.strip()))
+                    else:
+                        current_fragment.append(line)
+                
+                # Add any remaining text
+                if current_fragment:
+                    fragment_text = ' '.join(current_fragment).strip()
+                    smaller_fragments.append((label, fragment_text))
             else:
+                # Keep Header and Impression sections as single fragments
                 smaller_fragments.append((label, text.strip()))
+                
         return smaller_fragments
 
 

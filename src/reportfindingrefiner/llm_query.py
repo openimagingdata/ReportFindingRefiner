@@ -1,6 +1,7 @@
 # src/reportfindingrefiner/llm_query.py
 from typing import List
 from ollama import chat, ChatResponse
+from reportfindingrefiner.config import DEFAULT_MODEL # type: ignore
 
 def build_query(query: str, context: List[str]) -> str:
     """
@@ -18,8 +19,8 @@ def build_query(query: str, context: List[str]) -> str:
     """
     return prompt
 
-#NOTE: assumes user has ollama installed and running and serving the model 
-def query_llm(query: str, context: List[str], model: str = "llama3.3") -> str:
+#NOTE: assumes user has ollama installed and running and serving the model
+def query_llm(query: str, context: List[str], model: str = DEFAULT_MODEL) -> str:
     """
     Queries an Ollama LLM with a constructed prompt and returns a string response.
     """
