@@ -208,13 +208,34 @@ async def finalize_finding_model(request: FinalizeFindingModelRequest):
             detail=f"Error finalizing finding model: {str(e)}"
         )
     
-
+# refactor this so that it's cleaner doesn't print mark down, probably better to just generate a list of existing models rather than printing the entire model. 
 @app.get("/findingmodels")
 async def get_finding_models():
+    """
+    Retrieve all finding models from the findings table.
+    Returns a list of dictionaries containing model information.
+    """
     try:
         findings_table = findings_db.open_table(FINDINGS_TABLE_NAME)
-        results = findings_table.to_pandas()
-        return {"models": results.to_dict(orient="records")}
+        
+        # Use LanceDB's built-in query features to get all records
+        # Convert to pandas first, then select only the columns we need
+        df = findings_table.to_pandas()
+        df = df[["model_name", "model_data", "text"]]
+        
+        # Process the results into a more usable format
+        processed_models = []
+        for _, row in df.iterrows():
+            model_dict = {
+                "name": row["model_name"],
+                "model": row["model_data"],  # This contains the full JSON model
+                "markdown_text": row["text"]
+                #"extended_detail": row.get("extended_detail", "")  # Handle optional field
+            }
+            processed_models.append(model_dict)
+            
+        return {"models": processed_models}
+        
     except Exception as e:
         raise HTTPException(
             status_code=500,
@@ -362,4 +383,76 @@ async def generate_finding_outline(finding_info: BaseFindingInfo):
         raise HTTPException(
             status_code=500,
             detail=f"Error generating finding outline: {str(e)}"
+        )
+    
+@app.post("/findingmodel/outline/with_context")
+async def generate_finding_outline_with_context(
+    finding_info: BaseFindingInfo,
+    search_mode: str = "hybrid",
+    limit: int = DEFAULT_LIMIT
+):
+    """Generate a finding model outline using the LLM with context from similar reports"""
+    try:
+        # 1. Search for relevant context using the finding name and description
+        search_query = f"{finding_info.name} {finding_info.description}"
+        reports_table = reports_db.open_table(REPORTS_TABLE_NAME)
+        
+        # Print search parameters for debugging
+        print(f"\nSearch Parameters:")
+        print(f"Query: {search_query}")
+        print(f"Mode: {search_mode}")
+        print(f"Limit: {limit}\n")
+        
+        # Perform search based on specified mode
+        if search_mode == "basic":
+            results = reports_table.search(search_query).limit(limit).to_list()
+        elif search_mode == "hybrid":
+            results = reports_table.search(search_query, query_type="hybrid").limit(limit).to_list()
+        elif search_mode == "vector":
+            results = reports_table.search(search_query, query_type="vector").limit(limit).to_list()
+        else:
+            raise ValueError(f"Unknown search mode: {search_mode}")
+
+        # Print retrieved context for debugging
+        print("Retrieved Context:")
+        for idx, r in enumerate(results, 1):
+            print(f"\nContext Fragment {idx}:")
+            print(f"Score: {r.get('_score', 'N/A')}")
+            print(f"Section: {r.get('section', 'N/A')}")
+            print(f"Text: {r['text']}\n")
+            print("-" * 80)
+
+        context_docs = [r['text'] for r in results]
+        
+        # Rest of the function remains the same as in your previous implementation
+        with open("src/reportfindingrefiner/prompt_templates/get_finding_model_with_context.md.jinja") as f:
+            template = Template(f.read())
+            
+        prompt = template.render(
+            finding_info=finding_info,
+            context_documents=context_docs
+        )
+        
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+            json={"model": DEFAULT_MODEL, "prompt": prompt, "stream": False}
+        )
+        response.raise_for_status()
+        
+        model_json = response.json()["response"]
+        finding_model = FindingModelBase.model_validate_json(model_json)
+        
+        findings_table = findings_db.open_table(FINDINGS_TABLE_NAME)
+        findings_table.add([{
+            "model_name": finding_model.name,
+            "model_data": model_json,
+            "text": finding_model.as_markdown()
+        }])
+        
+        return finding_model
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error generating finding outline with context: {str(e)}"
         )
