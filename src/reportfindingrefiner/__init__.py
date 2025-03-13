@@ -5,7 +5,7 @@ This package provides functionality for ingesting, processing, and searching rep
 """
 
 from .data_models import Report
-from .ingestion import ingest_reports, read_reports_from_folder
+from .services.ingestion import read_reports_from_folder, ingest_reports
 from .section_splitter import SectionSplitter, create_fragments_from_reports
 
 __version__ = "0.1.0"
