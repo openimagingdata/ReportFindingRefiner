@@ -21,6 +21,12 @@ from reportfindingrefiner.models.finding_info import BaseFindingInfo
 from reportfindingrefiner.models.finding_model import FindingModelBase
 from reportfindingrefiner.ingestion import read_reports_from_folder, ingest_reports
 from reportfindingrefiner.data_models import FragmentSchema, FindingModelSchema
+from reportfindingrefiner.finding_model_tools import (
+    generate_finding_description,
+    generate_finding_outline,
+    generate_finding_outline_with_context,
+    list_finding_models
+)
 
 # Initialize FastAPI app
 app = FastAPI(title="Report Finding Refiner API")
@@ -31,71 +37,69 @@ findings_db = None
 REPORTS_TABLE_NAME = "reports"
 FINDINGS_TABLE_NAME = "findings"
 
+
+
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize LanceDB connections and create tables on startup"""
     global reports_db, findings_db
     
-    # Create DB directories if they don't exist
-    os.makedirs(DEFAULT_DB_PATH, exist_ok=True)
-    os.makedirs(os.path.join(DEFAULT_DB_PATH, "findings"), exist_ok=True)
+    print("\n🚀 Starting Report Finding Refiner API")
     
-    # Connect to DBs
-    reports_db = lancedb.connect(DEFAULT_DB_PATH)
-    findings_db = lancedb.connect(os.path.join(DEFAULT_DB_PATH, "findings"))
-    
-    # Initialize reports table if needed
-    reports_folder = "./data/reports"
-    if REPORTS_TABLE_NAME not in reports_db.table_names():
+    try:
+        # Create all required directories
+        os.makedirs(DEFAULT_DB_PATH, exist_ok=True)
+        os.makedirs(os.path.join(DEFAULT_DB_PATH, "findings"), exist_ok=True)
+        os.makedirs("./data/reports", exist_ok=True)
+        print("📁 Created required directories")
+        
+        # Connect to DBs
+        reports_db = lancedb.connect(DEFAULT_DB_PATH)
+        findings_db = lancedb.connect(os.path.join(DEFAULT_DB_PATH, "findings"))
+        print("🔌 Connected to databases")
+        
+        # Initialize reports table if it doesn't exist
+        if REPORTS_TABLE_NAME not in reports_db.table_names():
+            reports_db.create_table(
+                REPORTS_TABLE_NAME,
+                schema=FragmentSchema,
+                mode="create"
+            )
+            print(f"📊 Created new reports table: {REPORTS_TABLE_NAME}")
+            
+        # Initialize findings table if it doesn't exist
+        if FINDINGS_TABLE_NAME not in findings_db.table_names():
+            findings_db.create_table(
+                FINDINGS_TABLE_NAME,
+                schema=FindingModelSchema,
+                mode="create"
+            )
+            print(f"📊 Created new findings table: {FINDINGS_TABLE_NAME}")
+            
+        # Check for and process any reports
+        reports_folder = "./data/reports"
         if os.path.exists(reports_folder) and any(f.endswith('.txt') for f in os.listdir(reports_folder)):
+            print("\n📝 Found reports to process...")
             try:
                 ingest_reports(
                     reports_folder=reports_folder,
                     db_path=DEFAULT_DB_PATH,
                     table_name=REPORTS_TABLE_NAME
-                )
-            except Exception as e:
-                print(f"Error ingesting reports: {str(e)}")
-    else:
-        # Table exists, check for new reports
-        existing_table = reports_db.open_table(REPORTS_TABLE_NAME)
-        existing_reports = set(existing_table.to_pandas()['report_id'].unique())
-        
-        # Get list of reports in folder
-        available_reports = {f for f in os.listdir(reports_folder) if f.endswith('.txt')}
-        
-        # Only ingest new reports if any exist
-        new_reports = available_reports - existing_reports
-        if new_reports:
-            try:
-                # Create a temporary table for new reports
-                temp_table_name = f"{REPORTS_TABLE_NAME}_temp"
-                ingest_reports(
-                    reports_folder=reports_folder,
-                    db_path=DEFAULT_DB_PATH,
-                    table_name=temp_table_name
-                )
-                
-                # Merge new reports into existing table
-                temp_table = reports_db.open_table(temp_table_name)
-                new_data = temp_table.to_pandas()
-                new_data = new_data[new_data['report_id'].isin(new_reports)]
-                existing_table.add(new_data.to_dict('records'))
-                
-                # Clean up temporary table
-                reports_db.drop_table(temp_table_name)
-                
-                print(f"Ingested {len(new_reports)} new reports")
-            except Exception as e:
-                print(f"Error ingesting new reports: {str(e)}")
-    
-    # Initialize findings table if it doesn't exist
-    if FINDINGS_TABLE_NAME not in findings_db.table_names():
-        findings_db.create_table(
-            FINDINGS_TABLE_NAME,
-            schema=FindingModelSchema,
-            mode="create"
-        )
+                )   
+            except KeyboardInterrupt:
+                print("\n\n⚠️  Startup cancelled by user")
+                raise
+        else:
+            print("\n📝 No reports found in ./data/reports")
+            
+        print("\n✨ Startup complete!\n")
+            
+    except KeyboardInterrupt:
+        print("\n\n⚠️  Startup cancelled by user")
+        raise
+    except Exception as e:
+        print(f"\n❌ Error during startup: {str(e)}")
 
 @app.get("/")
 def read_root():
@@ -208,39 +212,14 @@ async def finalize_finding_model(request: FinalizeFindingModelRequest):
             detail=f"Error finalizing finding model: {str(e)}"
         )
     
-# refactor this so that it's cleaner doesn't print mark down, probably better to just generate a list of existing models rather than printing the entire model. 
 @app.get("/findingmodels")
-async def get_finding_models():
-    """
-    Retrieve all finding models from the findings table.
-    Returns a list of dictionaries containing model information.
-    """
+async def api_list_finding_models():
+    """Retrieve all finding models from the database"""
     try:
-        findings_table = findings_db.open_table(FINDINGS_TABLE_NAME)
-        
-        # Use LanceDB's built-in query features to get all records
-        # Convert to pandas first, then select only the columns we need
-        df = findings_table.to_pandas()
-        df = df[["model_name", "model_data", "text"]]
-        
-        # Process the results into a more usable format
-        processed_models = []
-        for _, row in df.iterrows():
-            model_dict = {
-                "name": row["model_name"],
-                "model": row["model_data"],  # This contains the full JSON model
-                "markdown_text": row["text"]
-                #"extended_detail": row.get("extended_detail", "")  # Handle optional field
-            }
-            processed_models.append(model_dict)
-            
-        return {"models": processed_models}
-        
+        models = list_finding_models()
+        return {"models": models}
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error retrieving finding models: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/reports")
 async def get_reports():
@@ -311,148 +290,42 @@ class FindingNameRequest(BaseModel):
     finding_name: str
 
 @app.post("/findingmodel/description")
-async def generate_finding_description(request: FindingNameRequest):
+async def api_generate_finding_description(request: FindingNameRequest):
     """Generate a description for a finding using the LLM"""
     try:
-        # Load the description template
-        with open("src/reportfindingrefiner/prompt_templates/get_finding_description.md.jinja") as f:
-            template = Template(f.read())
-            
-        # Create the prompt
-        prompt = template.render(finding_name=request.finding_name)
-        
-        # Query LLM
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={"model": DEFAULT_MODEL, "prompt": prompt, "stream": False}
-        )
-        response.raise_for_status()
-        #JUST FOR DEBUGGING
-        print("DEBUG -> response.text:", response.text)  
-        raw_response = response.json()["response"].strip()
-        
-        # Get the response and clean it
-        raw_response = response.json()["response"].strip()
-        
-        # Remove any markdown headers or formatting
-        cleaned_response = "\n".join(
-            line for line in raw_response.split('\n')
-            if not line.startswith('#') and line.strip()
-        ).strip()
-        
-        return {"description": cleaned_response}
-        
+        description = generate_finding_description(request.finding_name)
+        return {"description": description}
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error generating finding description: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/findingmodel/outline")
-async def generate_finding_outline(finding_info: BaseFindingInfo):
+async def api_generate_finding_outline(finding_info: BaseFindingInfo):
     """Generate a finding model outline using the LLM"""
     try:
-        # Load the model template
-        with open("src/reportfindingrefiner/prompt_templates/get_finding_model_from_outline.md.jinja") as f:
-            template = Template(f.read())
-            
-        # Create the prompt
-        prompt = template.render(finding_info=finding_info)
-        
-        # Query LLM
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={"model": DEFAULT_MODEL, "prompt": prompt, "stream": False}
+        finding_model = generate_finding_outline(
+            name=finding_info.name,
+            description=finding_info.description,
+            synonyms=finding_info.synonyms
         )
-        response.raise_for_status()
-        
-        model_json = response.json()["response"]
-        finding_model = FindingModelBase.model_validate_json(model_json)
-        
-        # Save to findings database
-        findings_table = findings_db.open_table(FINDINGS_TABLE_NAME)
-        findings_table.add([{
-            "model_name": finding_model.name,
-            "model_data": model_json,
-            "text": finding_model.as_markdown()
-        }])
-        
         return finding_model
-        
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error generating finding outline: {str(e)}"
-        )
-    
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/findingmodel/outline/with_context")
-async def generate_finding_outline_with_context(
+async def api_generate_finding_outline_with_context(
     finding_info: BaseFindingInfo,
-    search_mode: str = "hybrid",
+    search_mode: str = DEFAULT_SEARCH_MODE,
     limit: int = DEFAULT_LIMIT
 ):
     """Generate a finding model outline using the LLM with context from similar reports"""
     try:
-        # 1. Search for relevant context using the finding name and description
-        search_query = f"{finding_info.name} {finding_info.description}"
-        reports_table = reports_db.open_table(REPORTS_TABLE_NAME)
-        
-        # Print search parameters for debugging
-        print(f"\nSearch Parameters:")
-        print(f"Query: {search_query}")
-        print(f"Mode: {search_mode}")
-        print(f"Limit: {limit}\n")
-        
-        # Perform search based on specified mode
-        if search_mode == "basic":
-            results = reports_table.search(search_query).limit(limit).to_list()
-        elif search_mode == "hybrid":
-            results = reports_table.search(search_query, query_type="hybrid").limit(limit).to_list()
-        elif search_mode == "vector":
-            results = reports_table.search(search_query, query_type="vector").limit(limit).to_list()
-        else:
-            raise ValueError(f"Unknown search mode: {search_mode}")
-
-        # Print retrieved context for debugging
-        print("Retrieved Context:")
-        for idx, r in enumerate(results, 1):
-            print(f"\nContext Fragment {idx}:")
-            print(f"Score: {r.get('_score', 'N/A')}")
-            print(f"Section: {r.get('section', 'N/A')}")
-            print(f"Text: {r['text']}\n")
-            print("-" * 80)
-
-        context_docs = [r['text'] for r in results]
-        
-        # Rest of the function remains the same as in your previous implementation
-        with open("src/reportfindingrefiner/prompt_templates/get_finding_model_with_context.md.jinja") as f:
-            template = Template(f.read())
-            
-        prompt = template.render(
-            finding_info=finding_info,
-            context_documents=context_docs
+        finding_model = generate_finding_outline_with_context(
+            name=finding_info.name,
+            description=finding_info.description,
+            synonyms=finding_info.synonyms,
+            search_mode=search_mode,
+            limit=limit
         )
-        
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={"model": DEFAULT_MODEL, "prompt": prompt, "stream": False}
-        )
-        response.raise_for_status()
-        
-        model_json = response.json()["response"]
-        finding_model = FindingModelBase.model_validate_json(model_json)
-        
-        findings_table = findings_db.open_table(FINDINGS_TABLE_NAME)
-        findings_table.add([{
-            "model_name": finding_model.name,
-            "model_data": model_json,
-            "text": finding_model.as_markdown()
-        }])
-        
         return finding_model
-        
     except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error generating finding outline with context: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))

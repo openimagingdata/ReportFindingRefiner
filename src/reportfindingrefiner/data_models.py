@@ -24,7 +24,7 @@ class Fragment(BaseModel):
     vector: Optional[List[float]] = None
 
 
-# TODO: Make this configurable  
+# TODO: Make this configurable and TAKE tHIS Out of the data models
 embed_fcn = get_registry().get("huggingface").create(name="BAAI/bge-en-icl")
 
 
