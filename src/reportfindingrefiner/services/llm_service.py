@@ -4,7 +4,7 @@ from typing import Dict, Any, Optional, List
 from jinja2 import Template, Environment, FileSystemLoader
 from pathlib import Path
 
-from ..config import DEFAULT_MODEL
+from ..config import DEFAULT_MODEL, DEFAULT_API_BASE
 
 class LLMService:
     """
@@ -12,7 +12,7 @@ class LLMService:
     This class centralizes all LLM operations for both API and CLI.
     """
     
-    def __init__(self, model: str = DEFAULT_MODEL, api_base: str = "http://localhost:11434/api"):
+    def __init__(self, model: str = DEFAULT_MODEL, api_base: str = DEFAULT_API_BASE):
         """Initialize the LLM service"""
         self.model = model
         self.api_base = api_base

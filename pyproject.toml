@@ -1,9 +1,43 @@
 [project]
 name = "reportfindingrefiner"
 version = "0.1.0"
-description = "Add your description here"
+description = "Automated Clinical Findings Extraction from Radiology Reports using Local LLMs"
 readme = "README.md"
 requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Open Imaging Data Model Initiative"},
+]
+maintainers = [
+    {name = "Open Imaging Data Model Initiative"},
+]
+keywords = [
+    "radiology", 
+    "clinical-findings", 
+    "llm", 
+    "medical-nlp", 
+    "vector-search", 
+    "ollama", 
+    "lancedb"
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Healthcare Industry",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+urls = {
+    "Homepage" = "https://github.com/your-org/ReportFindingRefiner",
+    "Repository" = "https://github.com/your-org/ReportFindingRefiner",
+    "Issues" = "https://github.com/your-org/ReportFindingRefiner/issues",
+    "Documentation" = "https://github.com/your-org/ReportFindingRefiner/wiki",
+}
 dependencies = [
     "accelerate>=1.2.1",
     "fastapi>=0.115.6",
@@ -22,3 +56,29 @@ dependencies = [
     "transformers>=4.47.1",
     "uvicorn>=0.34.0",
 ]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.0.0",
+    "black>=23.0.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
