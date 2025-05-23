@@ -234,15 +234,7 @@ mypy src/
 ```
 
 ## 📋 Roadmap
-
-See [TODO.md](TODO.md) for current development priorities:
-
-- [ ] Enhanced template handling for prompt generation
-- [ ] Improved database connection management
-- [ ] Comprehensive test suite
-- [ ] Docker Compose setup with Ollama integration
-- [ ] Integration with RadElement for validated finding models
-- [ ] Few-shot learning capabilities
+This is very much a work in progress! Please reach out if you have any ideas or suggestions.
 
 ## 📄 License
 
