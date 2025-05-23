@@ -169,3 +169,12 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Cursor rules
+.cursorrules
+
+#DS_Store
+.DS_Store
+
+# data
+data/
